@@ -14,3 +14,6 @@ wheels/
 
 # Pytest
 .pytest_cache/
+
+# Data
+data/sift1m/sift

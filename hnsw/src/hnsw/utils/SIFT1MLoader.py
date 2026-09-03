@@ -5,7 +5,7 @@ class SIFT1MLoader():
     def __init__(self, sift1m_dir: Path):
         self.sift1m_dir = sift1m_dir
 
-    def load_sift1m_gt(self) -> np.array:
+    def load_sift1m_gt(self) -> np.typing.NDArray[np.int32]:
         path = self.sift1m_dir / "sift_groundtruth.ivecs"
         return self._read_ivecs(path)
 

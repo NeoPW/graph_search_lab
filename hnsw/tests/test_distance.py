@@ -1,79 +1,97 @@
-import numpy as np
-
-from hnsw.utils import l2_dist
-
-def test_simple_2D():
-    points = np.array([[1, 0], [1, 1], [4, 0]], dtype=np.float32)
-    query = np.array([[1, 0], [1, 0]], dtype=np.float32)
-
-    result = l2_dist(points=points, query=query)
-
-    expected = np.array([[0, 1, 3], [0, 1, 3]], dtype=np.float32)
-    np.testing.assert_array_equal(result, expected)
+# tests/test_l2_dist_rank.py
 
 import numpy as np
-from hypothesis import given, settings, strategies as st
-from hypothesis.extra.numpy import arrays
+import pytest
 
-from hnsw.utils import l2_dist
-
-# tolarance values are derived from float32 decimal points (roughly)
-RTOL = 1e-4
-ATOL = 1e-5
-
-finite_floats = st.floats(
-    min_value=-1e4, max_value=1e4, allow_nan=False, allow_infinity=False, width=32
-)
-
-@st.composite
-def points_and_query(draw, min_n=10, max_n=50, min_m=5, max_m=10, min_d=1, max_d=200):
-    d = draw(st.integers(min_value=min_d, max_value=max_d))
-    n = draw(st.integers(min_value=min_n, max_value=max_n))
-    m = draw(st.integers(min_value=min_m, max_value=max_m))
-    points = draw(
-        arrays(dtype=np.float32, shape=(n, d), elements=finite_floats)
-    )
-    query = draw(arrays(dtype=np.float32, shape=(m ,d), elements=finite_floats))
-    return points, query
+from hnsw.utils import l2_dist_rank
 
 
-class TestL2DistProperties:
-    @given(data=points_and_query())
-    @settings(max_examples=100)
-    def test_matches_oracle(self, data):
-        points, query = data
+def naive_sq_dist(a: np.ndarray, b: np.ndarray) -> float:
+    """Reference implementation: plain squared L2 between two 1D points."""
+    return float(np.sum((a - b) ** 2))
 
-        result = l2_dist(points=points, query=query)
-        expected = np.linalg.norm(points - query[:, np.newaxis], axis=2)
 
-        np.testing.assert_allclose(result, expected, rtol=RTOL, atol=ATOL)
+class TestShapes:
+    def test_single_query_single_point_1d_inputs(self):
+        q = np.array([0.0, 0.0], dtype=np.float32)
+        p = np.array([3.0, 4.0], dtype=np.float32)
+        result = l2_dist_rank(q, p)
+        assert result.shape == (1, 1)
+        assert result[0, 0] == pytest.approx(25.0)
 
-    @given(data=points_and_query(min_n=1, max_n=20))
-    @settings(max_examples=50)
-    def test_non_negative(self, data):
-        points, query = data
+    def test_single_query_single_point_already_2d(self):
+        q = np.array([[0.0, 0.0]], dtype=np.float32)
+        p = np.array([[3.0, 4.0]], dtype=np.float32)
+        result = l2_dist_rank(q, p)
+        assert result.shape == (1, 1)
+        assert result[0, 0] == pytest.approx(25.0)
 
-        result = l2_dist(points=points, query=query)
+    def test_single_query_multiple_points(self):
+        q = np.array([0.0, 0.0], dtype=np.float32)
+        points = np.array([[1.0, 0.0], [0.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+        result = l2_dist_rank(q, points)
+        assert result.shape == (1, 3)
+        expected = np.array([1.0, 4.0, 25.0])
+        np.testing.assert_allclose(result[0], expected)
 
-        assert np.all(result >= 0)
+    def test_batch_queries_multiple_points(self):
+        # oracle-style: Q queries against N points -> (Q, N)
+        queries = np.array([[0.0, 0.0], [10.0, 10.0]], dtype=np.float32)
+        points = np.array([[1.0, 0.0], [0.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+        result = l2_dist_rank(queries, points)
+        assert result.shape == (2, 3)
+        # row 0: distances from (0,0)
+        np.testing.assert_allclose(result[0], [1.0, 4.0, 25.0])
+        # row 1: distances from (10,10)
+        expected_row1 = [
+            naive_sq_dist(np.array([10.0, 10.0]), np.array([1.0, 0.0])),
+            naive_sq_dist(np.array([10.0, 10.0]), np.array([0.0, 2.0])),
+            naive_sq_dist(np.array([10.0, 10.0]), np.array([3.0, 4.0])),
+        ]
+        np.testing.assert_allclose(result[1], expected_row1)
 
-    @given(data=points_and_query(min_n=1, max_n=20))
-    @settings(max_examples=50)
-    def test_distance_to_self_is_zero(self, data):
-        points, query = data
-        # overwrite one row with the query itself
-        points = points.copy()
-        points[0] = query[0]
 
-        result = l2_dist(points=points, query=query)
+class TestCorrectness:
+    def test_zero_distance_when_equal(self):
+        q = np.array([5.0, -3.0], dtype=np.float32)
+        p = np.array([5.0, -3.0], dtype=np.float32)
+        result = l2_dist_rank(q, p)
+        assert result[0, 0] == pytest.approx(0.0)
 
-        assert result[0][0] == 0.0
+    def test_matches_naive_loop_implementation(self):
+        rng = np.random.default_rng(42)
+        queries = rng.random((4, 5)).astype(np.float32)
+        points = rng.random((7, 5)).astype(np.float32)
 
-    @given(data=points_and_query(min_n=1, max_n=20))
-    @settings(max_examples=50)
-    def test_output_shape_and_dtype(self, data):
-        points, query = data
+        result = l2_dist_rank(queries, points)
 
-        result = l2_dist(points=points, query=query)
+        expected = np.array(
+            [[naive_sq_dist(q, p) for p in points] for q in queries]
+        )
+        np.testing.assert_allclose(result, expected, rtol=1e-5)
 
-        assert result.shape == (query.shape[0], points.shape[0])
+
+class TestEdgeCases:
+    def test_single_dimension_points(self):
+        # d=1: exercises the newaxis broadcasting with the smallest possible d
+        q = np.array([2.0], dtype=np.float32)
+        points = np.array([[5.0], [1.0]], dtype=np.float32)
+        result = l2_dist_rank(q, points)
+        assert result.shape == (1, 2)
+        np.testing.assert_allclose(result[0], [9.0, 1.0])
+
+    def test_single_point_array_shape_d_vs_shape_1_d(self):
+        # (d,) and (1, d) must be treated identically for a single point
+        q = np.array([1.0, 1.0], dtype=np.float32)
+        p_flat = np.array([4.0, 5.0], dtype=np.float32)
+        p_2d = np.array([[4.0, 5.0]], dtype=np.float32)
+
+        result_flat = l2_dist_rank(q, p_flat)
+        result_2d = l2_dist_rank(q, p_2d)
+        np.testing.assert_allclose(result_flat, result_2d)
+
+    def test_output_is_always_2d_regardless_of_input_rank(self):
+        q = np.array([0.0, 0.0], dtype=np.float32)
+        p = np.array([1.0, 1.0], dtype=np.float32)
+        result = l2_dist_rank(q, p)
+        assert result.ndim == 2

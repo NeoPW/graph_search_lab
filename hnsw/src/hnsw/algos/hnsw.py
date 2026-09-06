@@ -13,13 +13,13 @@ class HNSW():
     def search_layer(self, query: np.typing.NDArray[np.float32], entry_points: list[int], k: int, level: int) -> list[int]:
         visited = entry_points.copy()
         candidates = entry_points.copy()
-        found = entry_points.copy()
+        found = self._top_k_by_distance(query=query, points=entry_points, k=k)
 
         while len(candidates) > 0:
             candidate = self._get_closest(query=query, points=candidates)
             candidates.remove(candidate)
             furthest = self._get_furthest(query=query, points=found)
-            if l2_dist_rank(query=query, points=self.POINTS[furthest]).squeeze() > l2_dist_rank(query=query, points=self.POINTS[candidate]).squeeze():
+            if l2_dist_rank(query=query, points=self.POINTS[candidate]).squeeze() > l2_dist_rank(query=query, points=self.POINTS[furthest]).squeeze():
                 break # candidate further away then furthest so we are done
 
             for neighbour in self.layer_graphs[level][candidate]:
@@ -42,4 +42,13 @@ class HNSW():
 
     def _get_furthest(self, query: np.typing.NDArray[np.float32], points: list[int]) -> int:
         dist = l2_dist_rank(query=query, points=self.POINTS[points])
-        return points[int(np.argmin(dist))]
+        return points[int(np.argmax(dist))]
+
+    def _top_k_by_distance(self, query: np.typing.NDArray[np.float32], points: list[int], k: int) -> list[int]:
+        if len(points) == 0:
+            return []
+        dist = l2_dist_rank(query=query, points=self.POINTS[points])
+        dist = np.atleast_1d(dist.squeeze())
+        order = np.argsort(dist)
+        k = min(k, len(points))
+        return [points[i] for i in order[:k]]

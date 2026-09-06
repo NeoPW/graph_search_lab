@@ -1,0 +1,1 @@
+Invoke-WebRequest -Uri "ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz" -OutFile "sift.tar.gz"; tar -xzf sift.tar.gz; Remove-Item -Force sift.tar.gz

@@ -25,6 +25,28 @@ class HNSW():
             POINTS=POINTS,
         )
 
+    def k_nn_search(self, query: np.typing.NDArray[np.float32], k: int, cand_list_size: int) -> list[int]:
+        closest = []
+        entry_points = self.entry_points
+        top_level = self.top_level
+
+        for level in range(top_level, 0, -1):
+            closest = self.search_layer(
+                query=query,
+                entry_points=entry_points,
+                k=1,
+                level=level
+            )
+            entry_points = [self._get_closest(query=query, points=closest)]
+
+        closest = self.search_layer(
+            query=query,
+            entry_points=entry_points,
+            k=cand_list_size,
+            level=0
+            )
+        return self._top_k_by_distance(query=query, points=closest, k=k)
+
     # insert new element in layer graphs
     def insert(self, new_element: int, established_connections_num: int, max_conn_per_el_per_layer: list[int], cand_list_size: int, norm_factor: float) -> None:
         closest = []
@@ -75,7 +97,6 @@ class HNSW():
         if new_el_level > top_level:
             self.top_level = new_el_level
             self.entry_points = [new_element]
-
 
     # return list of k clostest neighbours in layer_number layer to query, starts greedy search from entry_points
     def search_layer(self, query: np.typing.NDArray[np.float32], entry_points: list[int], k: int, level: int) -> list[int]:

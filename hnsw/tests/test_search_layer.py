@@ -31,7 +31,7 @@ QUERY_NEAR_B = np.array([10.2, 10.2], dtype=np.float32)  # NN = 4
 
 @pytest.fixture
 def hnsw():
-    return HNSW(layer_graphs=[LAYER_0], POINTS=POINTS)
+    return HNSW(layer_graphs=[LAYER_0], top_level=0, entry_points=[0], POINTS=POINTS)
 
 
 class TestBasicNearestNeighbor:

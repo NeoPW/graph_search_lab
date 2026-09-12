@@ -125,8 +125,43 @@ class HNSW():
 
         return found
 
-    def select_neigh_simple(self, query: np.typing.NDArray[np.float32], candidates: list[int], k: int):
+    def select_neigh_simple(self, query: np.typing.NDArray[np.float32], candidates: list[int], k: int) -> list[int]:
         return self._top_k_by_distance(query=query, points=candidates, k=k)
+
+    def select_neigh_heuristic(self, query: np.typing.NDArray[np.float32], candidates: list[int], k: int, layer:int, extendCandidates: bool, keepPrunedConnections: bool) -> list[int]:
+        selected = []
+        candidates = candidates.copy()
+
+        if extendCandidates:
+            for candidate in candidates.copy(): ##copy to not run into mutate while iterate bug
+                for neigh in self.layer_graphs[layer][candidate]:
+                    if neigh not in candidates:
+                        candidates.append(neigh)
+
+        discarded = []
+        while len(candidates) > 0 and len(selected) < k:
+            candidate = self._get_closest(query=query, points=candidates)
+            dist_query_candidate = l2_dist_rank(query=query, points=self.POINTS[[candidate]]).squeeze()
+
+            # accept candidate only if closer to query than to EVERY already-selected element
+            is_diverse = True
+            for sel in selected:
+                if dist_query_candidate >= l2_dist_rank(query=self.POINTS[candidate], points=self.POINTS[[sel]]):
+                    is_diverse = False
+                    break
+
+            if is_diverse:
+                selected.append(candidate)
+            else:
+                discarded.append(candidate)
+            candidates.remove(candidate)
+
+        if keepPrunedConnections:
+            while len(discarded) > 0 and len(selected) < k:
+                clostest = self._get_closest(query=query, points=discarded)
+                selected.append(clostest)
+                discarded.remove(clostest)
+        return selected
 
     def _get_closest(self, query: np.typing.NDArray[np.float32], points: list[int]) -> int:
         dist = l2_dist_rank(query=query, points=self.POINTS[points])

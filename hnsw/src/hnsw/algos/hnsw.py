@@ -63,7 +63,7 @@ class HNSW():
             closest = self.search_layer(
                 query=self.POINTS[new_element],
                 entry_points=entry_points,
-                k=cand_list_size,
+                k=1,
                 level=level
             )
             entry_points = [self._get_closest(query=self.POINTS[new_element], points=closest)]

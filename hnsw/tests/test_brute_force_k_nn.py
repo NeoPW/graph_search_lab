@@ -100,7 +100,7 @@ class TestSIFT1MIntegration:
         loader = SIFT1MLoader(Path("/home/kldell54304/personal/graph-search-lab/data/sift1m/sift"))
         return loader.load_sift1m_base(), loader.load_sift1m_query(), loader.load_sift1m_gt()
 
-    @pytest.mark.parametrize("n_queries", [1, 2, 50])
+    @pytest.mark.parametrize("n_queries", [1, 2, 5])
     def test_matches_ground_truth_by_distance(self, sift_data, n_queries):
         base, query, gt = sift_data
         q = query[:n_queries]

@@ -4,7 +4,8 @@ from pathlib import Path
 from hypothesis import given, settings, strategies as st
 from hypothesis.extra.numpy import arrays
 
-from hnsw.utils import l2_dist, SIFT1MLoader
+from hnsw.utils import l2_dist
+from hnsw.data import SIFT1MLoader
 from hnsw.algos import brute_force_k_nns
 
 RTOL = 1e-4

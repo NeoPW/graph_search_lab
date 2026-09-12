@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hnsw.utils import SIFT1MLoader
+from hnsw.data import SIFT1MLoader
 
 
 def write_fvecs(path: Path, vectors: np.typing.NDArray[np.float32]) -> None:
